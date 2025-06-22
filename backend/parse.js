@@ -10,44 +10,39 @@ module.exports = {
      */
     extractRouteData: async function(page) {
         console.log('[parser] Starte Route-Extraktion');
-        // 1) Suche im DOM nach dem Script, das die Daten in
-        //    window.APP_INITIALIZATION_STATE enthält
-        const dataStr = await page.evaluate(() => {
-            const scripts = Array.from(document.querySelectorAll('script'));
-            for (const script of scripts) {
-                const text = script.textContent || '';
-                if (text.includes('APP_INITIALIZATION_STATE')) {
-                    const m = text.match(/APP_INITIALIZATION_STATE=([^;]+);/s);
-                    if (m && m[1]) {
-                        return m[1];
-                    }
-                }
-            }
-            return null;
+
+        const scriptText = await page.evaluate(() => {
+            const tag = Array.from(document.querySelectorAll('script')).find(s =>
+                s.textContent && s.textContent.includes('APP_INITIALIZATION_STATE')
+            );
+            return tag ? tag.textContent : null;
         });
 
-        if (!dataStr) {
+        if (!scriptText) {
             return [];
         }
 
-        // 2) Extrahiere alle Lat/Lon-Paare mittels Regex aus dem
-        //    JSON-String. Einige Zahlen sind durch Zeilenumbrüche
-        //    getrennt, daher entfernen wir diese vorher.
-        const cleaned = dataStr.replace(/\n/g, '');
+        // Der Directions-Payload beginnt nach einem ")]}'" Marker und endet
+        // vor "window.WIZ_global_data". Darin suchen wir nach Dezimalpaaren.
+        const startIdx = scriptText.indexOf(")]}'");
+        let payload = startIdx >= 0 ? scriptText.slice(startIdx + 4) : scriptText;
+        const endIdx = payload.indexOf('window.WIZ_global_data');
+        if (endIdx > 0) payload = payload.slice(0, endIdx);
+
         const coordRe = /(-?\d+\.\d+),(-?\d+\.\d+)/g;
         const coords = [];
         let m;
-        while ((m = coordRe.exec(cleaned)) !== null) {
-            let a = parseFloat(m[1]);
-            let b = parseFloat(m[2]);
+        while ((m = coordRe.exec(payload)) !== null) {
+            const a = parseFloat(m[1]);
+            const b = parseFloat(m[2]);
             if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
                 coords.push([a, b]);
             } else if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
                 coords.push([b, a]);
             }
         }
-        console.log(`[parser] Extrahierte Koordinaten-Paare: ${coords.length}`);
 
+        console.log(`[parser] Extrahierte Koordinaten-Paare: ${coords.length}`);
         return coords;
     }
 };

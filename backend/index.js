@@ -53,18 +53,10 @@ app.post('/api/gpx', async (req, res) => {
     let coords = await extractRouteData(page);
     await browser.close();
 
-    // Nur plausible Geo-Punkte behalten und ggf. Lat/Lon tauschen
-    coords = coords
-        .map(([a, b]) => {
-            if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
-                return [a, b];
-            }
-            if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
-                return [b, a];
-            }
-            return null;
-        })
-        .filter(Boolean);
+    // Erste doppelte Koordinaten (Start/Ziel in Metadaten) entfernen
+    if (coords.length > 4) {
+      coords = coords.slice(4);
+    }
 
     // Doppelte aufeinanderfolgende Punkte entfernen
     coords = coords.filter(
