@@ -28,5 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log('✅ Service Worker registriert'))
+      .catch(err => console.error('SW-Fehler:', err));
+  }
+</script>
 </body>
 </html>
