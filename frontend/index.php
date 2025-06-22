@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_encode(['url' => $_POST['url']]);
     $opts = ['http'=>['method'=>'POST','header'=>"Content-Type: application/json\r\n",'content'=>$data]];
     $ctx = stream_context_create($opts);
-    $backend = 'https://YOUR_RAILWAY_URL/api/gpx'; // <--- Hier deine URL eintragen
+    $backend = 'https://maps-to-gpx.onrender.com/api/gpx';
     $res = @file_get_contents($backend, false, $ctx);
     if ($res === false) {
         echo '<p style="color:red">Fehler bei der Konvertierung.</p>';
