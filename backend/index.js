@@ -53,13 +53,23 @@ app.post('/api/gpx', async (req, res) => {
     let coords = await extractRouteData(page);
     await browser.close();
 
-    // Nur plausible Geo-Punkte behalten
+    // Nur plausible Geo-Punkte behalten und ggf. Lat/Lon tauschen
     coords = coords
-        .filter(([a, b]) =>
-            Math.abs(a) <= 90 && Math.abs(b) <= 180
-        )
-        // falls nötig lat/lon tauschen
-        .map(([a, b]) => (a < b ? [b, a] : [a, b]));
+        .map(([a, b]) => {
+            if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+                return [a, b];
+            }
+            if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
+                return [b, a];
+            }
+            return null;
+        })
+        .filter(Boolean);
+
+    // Doppelte aufeinanderfolgende Punkte entfernen
+    coords = coords.filter(
+        (pt, i) => i === 0 || pt[0] !== coords[i - 1][0] || pt[1] !== coords[i - 1][1]
+    );
 
     if (!coords.length) {
       console.warn('⚠️  No valid geo coordinates');
