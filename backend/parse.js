@@ -10,63 +10,42 @@ module.exports = {
      */
     extractRouteData: async function(page) {
         console.log('[parser] Starte Route-Extraktion');
-        // 1) Suche im DOM nach dem Script, das die directions-JSON enthält
-        const jsonBlock = await page.evaluate(() => {
-            console.log('[parser] Suche Script-Tags nach "/maps/preview/directions"');
+        // 1) Suche im DOM nach dem Script, das die Daten in
+        //    window.APP_INITIALIZATION_STATE enthält
+        const dataStr = await page.evaluate(() => {
             const scripts = Array.from(document.querySelectorAll('script'));
             for (const script of scripts) {
                 const text = script.textContent || '';
-                if (text.includes('/maps/preview/directions')) {
-                    console.log(`[parser] Gefunden in <script> (Länge ${text.length})`);
-                    // Regex: fängt das [[[ ... ]]]-Array nach dem fetch(...).then(res=>res.json()=>...)
-                    const re = /fetch\("\/maps\/preview\/directions\?[^"]+"\)\s*\.then\(\s*res\s*=>\s*res\.json\(\)\s*=>\s*(\[\[\[[\s\S]*?\]\]\])/m;
-                    const m = text.match(re);
+                if (text.includes('APP_INITIALIZATION_STATE')) {
+                    const m = text.match(/APP_INITIALIZATION_STATE=([^;]+);/s);
                     if (m && m[1]) {
-                        console.log(`[parser] JSON-Block gefunden (Länge ${m[1].length})`);
                         return m[1];
                     }
                 }
             }
-            console.warn('[parser] Kein directions-JSON-Block in Script-Tags gefunden');
             return null;
         });
 
-        if (!jsonBlock) {
+        if (!dataStr) {
             return [];
         }
 
-        // 2) In Node: JSON.parse und Koordinaten extrahieren
-        let arr;
-        try {
-            console.log('[parser] Parsen des JSON-Blocks');
-            arr = JSON.parse(jsonBlock);
-            console.log('[parser] JSON geparst, top-level Elemente:', arr.length);
-        } catch (err) {
-            console.error('[parser] Fehler beim JSON.parse:', err);
-            return [];
-        }
-
-        // 3) Tief durchsuchen und alle [lat, lon]-Paare sammeln
+        // 2) Extrahiere alle Lat/Lon-Paare mittels Regex aus dem
+        //    JSON-String. Einige Zahlen sind durch Zeilenumbrüche
+        //    getrennt, daher entfernen wir diese vorher.
+        const cleaned = dataStr.replace(/\n/g, '');
+        const coordRe = /(-?\d+\.\d+),(-?\d+\.\d+)/g;
         const coords = [];
-        const isLatLon = node =>
-            Array.isArray(node) &&
-            node.length >= 4 &&
-            typeof node[node.length - 2] === 'number' &&
-            typeof node[node.length - 1] === 'number';
-
-        function traverse(node) {
-            if (isLatLon(node)) {
-                const lat = node[node.length - 2];
-                const lon = node[node.length - 1];
-                coords.push([lat, lon]);
-            } else if (Array.isArray(node)) {
-                for (const child of node) {
-                    traverse(child);
-                }
+        let m;
+        while ((m = coordRe.exec(cleaned)) !== null) {
+            let a = parseFloat(m[1]);
+            let b = parseFloat(m[2]);
+            if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+                coords.push([a, b]);
+            } else if (Math.abs(b) <= 90 && Math.abs(a) <= 180) {
+                coords.push([b, a]);
             }
         }
-        console.log('[parser] Durchsuche JSON-Struktur nach lat/lon-Paaren');
-        traverse(arr);
         console.log(`[parser] Extrahierte Koordinaten-Paare: ${coords.length}`);
 
         return coords;
